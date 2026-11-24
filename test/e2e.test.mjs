@@ -65,7 +65,7 @@ test("full start -> recording -> stop cycle saves a WAV and notifies", async () 
     assert.equal(sink.notices.length, 1, "one notification should be sent");
     assert.equal(sink.notices[0].title, "录音已保存");
 
-    const statuses = sink.published.map((p) => p.data.status);
+    const statuses = sink.published.filter((p) => p.topic === "recorder.state").map((p) => p.data.status);
     assert.deepEqual(statuses, ["starting", "recording", "saved"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -129,7 +129,7 @@ test("full start -> pause -> resume -> stop cycle keeps elapsed time", async () 
     assert.equal(config.commands[2], "RESUME");
     assert.equal(config.commands[3], "STOP");
 
-    const statuses = sink.published.map((p) => p.data.status);
+    const statuses = sink.published.filter((p) => p.topic === "recorder.state").map((p) => p.data.status);
     assert.deepEqual(statuses, ["starting", "recording", "paused", "recording", "saved"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });

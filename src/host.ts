@@ -6,7 +6,17 @@ import { fileURLToPath } from "node:url";
 import type { Context } from "fuyu-plugin";
 import { fileShelfV1, messagesV1 } from "fuyu-plugin/services";
 import { createLineBuffer, parseReply } from "./protocol.ts";
-import { METHODS, TOPICS, INITIAL_STATE, elapsedOf, type ErrorCode, type RecState } from "./types.ts";
+import {
+  METHODS,
+  TOPICS,
+  INITIAL_STATE,
+  DEFAULT_BAR_CONFIG,
+  elapsedOf,
+  normalizeBarConfig,
+  type BarConfig,
+  type ErrorCode,
+  type RecState,
+} from "./types.ts";
 
 export const name = "recorder";
 export const inject = {
@@ -15,6 +25,10 @@ export const inject = {
   "file-shelf/v1": null,
   "messages/v1": null,
 };
+
+// 配置面板存盘后最多 1.5 秒推到岛上；窗口拿不到配置服务，统一由宿主读。
+const CONFIG_POLL_MS = 1_500;
+const CONFIG_FILE = "config.json";
 
 // 宽松分类：宁可归到 failed，也不要误报成权限问题。
 function classifyError(message: string): ErrorCode {
@@ -37,6 +51,34 @@ export function apply(ctx: Context) {
   let child: ChildProcessWithoutNullStreams | null = null;
   let pending: ((ok: boolean, payload: string) => void) | null = null;
   let state: RecState = { ...INITIAL_STATE, updatedAt: Date.now() };
+
+  // 配置只由宿主读：先问浮屿注入的 config 访问器（每次调用都读磁盘），
+  // 拿不到再读 dataDir/config.json；窗口侧只用 topic 收，不碰配置服务。
+  const configPath = join(ctx.dataDir, CONFIG_FILE);
+  let config: BarConfig = { ...DEFAULT_BAR_CONFIG };
+
+  function readConfig(): BarConfig {
+    try {
+      const accessor = (ctx as unknown as { config?: { get?: () => unknown } }).config;
+      const values = accessor?.get?.();
+      if (values !== undefined) return normalizeBarConfig(values);
+    } catch {
+      // 旧版浮屿没有 config 访问器，退回读文件。
+    }
+    try {
+      return normalizeBarConfig(JSON.parse(readFileSync(configPath, "utf8")));
+    } catch {
+      return { ...DEFAULT_BAR_CONFIG };
+    }
+  }
+
+  function syncConfig(force = false): BarConfig {
+    const next = readConfig();
+    if (!force && JSON.stringify(next) === JSON.stringify(config)) return config;
+    config = next;
+    ctx.clients.publish(TOPICS.config, config);
+    return config;
+  }
 
   // state 内部只存「已完成段累计 + 当前段起点」，对外快照把实时时长算进 elapsedMs。
   const snapshot = (): RecState => ({ ...state, elapsedMs: elapsedOf(state) });
@@ -229,6 +271,7 @@ export function apply(ctx: Context) {
   }
 
   ctx.clients.handle(METHODS.getState, () => snapshot());
+  ctx.clients.handle(METHODS.getConfig, () => syncConfig());
 
   // 录音中每 500ms 推一次实时时长；停止后不再推送，窗口只读快照。
   ctx.setInterval(() => {
@@ -238,6 +281,9 @@ export function apply(ctx: Context) {
   ctx.clients.handle(METHODS.stop, stop);
   ctx.clients.handle(METHODS.pause, pause);
   ctx.clients.handle(METHODS.resume, resume);
+
+  syncConfig(true);
+  ctx.setInterval(() => { syncConfig(); }, CONFIG_POLL_MS);
 
   ctx.commands.register("toggle", () => (state.status === "recording" || state.status === "paused" ? stop() : start()), {
     title: { "zh-CN": "开始/停止录音", en: "Start / stop recording" },

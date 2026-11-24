@@ -1,6 +1,6 @@
 {
   "name": "@wai023/recorder",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "description": "Record audio on the island, save as WAV and add to the file shelf",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "package": "fuyu-plugin pack --config build.config.json",
     "typecheck": "tsc",
     "lint": "eslint .",
-    "test": "npm run build && node --experimental-strip-types --test test/protocol.test.mjs test/host.test.mjs && node --test test/e2e.test.mjs"
+    "test": "npm run build && node --experimental-strip-types --test test/protocol.test.mjs test/config.test.mjs test/host.test.mjs && node --test test/e2e.test.mjs"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",

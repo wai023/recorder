@@ -1,14 +1,31 @@
 export const TOPICS = {
   state: "recorder.state",
+  config: "recorder.config",
 } as const;
 
 export const METHODS = {
   getState: "recorder.getState",
+  getConfig: "recorder.getConfig",
   start: "recorder.start",
   stop: "recorder.stop",
   pause: "recorder.pause",
   resume: "recorder.resume",
 } as const;
+
+export type BarStyle = "icon" | "icon-time" | "text-time";
+export type BarConfig = { barStyle: BarStyle; showStateDot: boolean };
+
+export const DEFAULT_BAR_CONFIG: BarConfig = { barStyle: "icon-time", showStateDot: true };
+
+// 配置面板存的是稀疏值（只写改过的项），这里补齐默认并挡掉非法值。
+export function normalizeBarConfig(raw: unknown): BarConfig {
+  const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+  const style = input.barStyle;
+  return {
+    barStyle: style === "icon" || style === "text-time" ? style : "icon-time",
+    showStateDot: input.showStateDot !== false,
+  };
+}
 
 export type RecStatus = "idle" | "starting" | "recording" | "paused" | "saved" | "error";
 export type ErrorCode = "permission" | "device" | "interrupted" | "failed" | null;

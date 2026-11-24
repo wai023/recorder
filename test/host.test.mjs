@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -56,6 +56,7 @@ test("apply registers all window methods and both commands", () => {
     host.apply(ctx);
     for (const name of [
       "recorder.getState",
+      "recorder.getConfig",
       "recorder.start",
       "recorder.stop",
       "recorder.pause",
@@ -70,6 +71,33 @@ test("apply registers all window methods and both commands", () => {
     assert.equal(title.en, "Start / stop recording");
     const pauseTitle = ctx.registeredCommands.get("pause").options.title;
     assert.equal(pauseTitle["zh-CN"], "暂停/继续录音");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("getConfig publishes defaults on start and answers the window", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fuyu-recorder-"));
+  try {
+    const ctx = makeCtx(dir);
+    host.apply(ctx);
+    const config = ctx.handlers.get("recorder.getConfig")();
+    assert.deepEqual(config, { barStyle: "icon-time", showStateDot: true });
+    const publishedConfig = ctx.published.find((item) => item.topic === "recorder.config");
+    assert.ok(publishedConfig, "config should be published for the island");
+    assert.deepEqual(publishedConfig.data, { barStyle: "icon-time", showStateDot: true });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("getConfig reads the saved config.json from the data directory", () => {
+  const dir = mkdtempSync(join(tmpdir(), "fuyu-recorder-"));
+  try {
+    writeFileSync(join(dir, "config.json"), JSON.stringify({ barStyle: "icon", showStateDot: false }), "utf8");
+    const ctx = makeCtx(dir);
+    host.apply(ctx);
+    assert.deepEqual(ctx.handlers.get("recorder.getConfig")(), { barStyle: "icon", showStateDot: false });
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

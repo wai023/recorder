@@ -1,14 +1,17 @@
 import type { Context } from "fuyu-plugin";
-import { pluginConfigV1 } from "fuyu-plugin/services";
 import { useEffect, useState } from "react";
-import { METHODS, TOPICS, INITIAL_STATE, formatDuration, type RecState } from "./types.ts";
+import {
+  METHODS,
+  TOPICS,
+  INITIAL_STATE,
+  DEFAULT_BAR_CONFIG,
+  formatDuration,
+  normalizeBarConfig,
+  type BarConfig,
+  type RecState,
+} from "./types.ts";
 import { text } from "./text.ts";
 import "./styles.css";
-
-const PLUGIN_ID = "@wai023/recorder";
-type BarStyle = "icon" | "icon-time" | "text-time";
-type BarConfig = { barStyle: BarStyle; showStateDot: boolean };
-const DEFAULT_BAR_CONFIG: BarConfig = { barStyle: "icon-time", showStateDot: true };
 
 function MicIcon({ size = 16 }: { size?: number | string }) {
   return (
@@ -62,28 +65,21 @@ export default function apply(ctx: Context) {
   function useBarConfig(): BarConfig {
     const [config, setConfig] = useState<BarConfig>(DEFAULT_BAR_CONFIG);
 
+    // 配置由宿主读盘后推过来：窗口侧没有配置服务，
+    // 之前直接调它失败又被 catch 吞掉，收起条样式设置一直不生效。
     useEffect(() => {
-      let off: (() => void) | undefined;
-      try {
-        const service = ctx.services.get(pluginConfigV1);
-        const applyValues = (values: Record<string, unknown> | undefined) => {
-          if (!values) return;
-          const style = values.barStyle;
-          setConfig({
-            barStyle: style === "icon" || style === "text-time" ? style : "icon-time",
-            showStateDot: values.showStateDot !== false,
-          });
-        };
-        void service.get({ id: PLUGIN_ID }).then((entry) => {
-          applyValues(entry?.values as Record<string, unknown> | undefined);
-        });
-        off = service.on("changed", (event) => {
-          if (event.id === PLUGIN_ID) applyValues(event.values as Record<string, unknown>);
-        });
-      } catch {
-        // 配置服务不可用时用默认值，不影响录音本身。
-      }
-      return () => { off?.(); };
+      let alive = true;
+      const apply = (values: unknown) => {
+        if (alive) setConfig(normalizeBarConfig(values));
+      };
+      const off = ctx.host.on(TOPICS.config, apply);
+      void ctx.host.call(METHODS.getConfig).then(apply).catch(() => {
+        // 宿主没实现时保持默认样式，录音本身不受影响。
+      });
+      return () => {
+        alive = false;
+        void off();
+      };
     }, []);
 
     return config;
