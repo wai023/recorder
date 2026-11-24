@@ -235,3 +235,64 @@
   color: var(--fuyu-plugin-text-muted);
   font-variant-numeric: tabular-nums;
 }
+
+/* 最近录音：一行一条，点了在资源管理器里定位 */
+.recorder__recent {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--fuyu-plugin-surface);
+}
+
+.recorder__recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 12px;
+  color: var(--fuyu-plugin-text-muted);
+}
+
+.recorder__recent-hint {
+  font-size: 11px;
+  opacity: 0.72;
+}
+
+.recorder__recent-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 168px;
+  overflow-y: auto;
+}
+
+.recorder__recent-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  width: 100%;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--fuyu-plugin-radius);
+  background: transparent;
+  color: var(--fuyu-plugin-text);
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.recorder__recent-row:hover {
+  background: var(--fuyu-plugin-surface);
+}
+
+.recorder__recent-when,
+.recorder__recent-dur {
+  font-variant-numeric: tabular-nums;
+}
+
+.recorder__recent-when,
+.recorder__recent-size {
+  color: var(--fuyu-plugin-text-muted);
+}

@@ -31,6 +31,8 @@ const en = {
   },
   error: (message: string) => `Error: ${message}`,
   hint: "WAV files are saved to the plugin folder and added to the file shelf.",
+  recent: "Recent recordings",
+  recentHint: "Click a row to show the file in Explorer",
 };
 
 const zhCN: typeof en = {
@@ -66,6 +68,8 @@ const zhCN: typeof en = {
   },
   error: (message: string) => `错误：${message}`,
   hint: "录音以 WAV 保存到插件目录，并自动加入文件中转。",
+  recent: "最近录音",
+  recentHint: "点一条在资源管理器中定位",
 };
 
 export const text = navigator.language.toLowerCase().startsWith("zh") ? zhCN : en;

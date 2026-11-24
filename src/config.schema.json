@@ -25,6 +25,19 @@
         "en": "Use a colored dot for idle, recording, paused, saved and error"
       },
       "default": true
+    },
+    "saveDir": {
+      "type": "string",
+      "title": {
+        "zh-CN": "保存位置",
+        "en": "Save location"
+      },
+      "description": {
+        "zh-CN": "data=插件数据目录（默认）；music=音乐；desktop=桌面；documents=文档。目录不可写时自动回退到数据目录",
+        "en": "data = plugin data folder (default); music, desktop or documents. Falls back to the data folder when the target is not writable"
+      },
+      "enum": ["data", "music", "desktop", "documents"],
+      "default": "data"
     }
   }
 }

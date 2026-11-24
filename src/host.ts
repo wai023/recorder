@@ -1,11 +1,13 @@
 /// <reference types="node" />
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Context } from "fuyu-plugin";
 import { fileShelfV1, messagesV1 } from "fuyu-plugin/services";
 import { createLineBuffer, parseReply } from "./protocol.ts";
+import { wavDurationMs } from "./wav.ts";
 import {
   METHODS,
   TOPICS,
@@ -16,6 +18,8 @@ import {
   type BarConfig,
   type ErrorCode,
   type RecState,
+  type RecordingItem,
+  type SaveDir,
 } from "./types.ts";
 
 export const name = "recorder";
@@ -26,9 +30,12 @@ export const inject = {
   "messages/v1": null,
 };
 
-// 配置面板存盘后最多 1.5 秒推到岛上；窗口拿不到配置服务，统一由宿主读。
-const CONFIG_POLL_MS = 1_500;
+// 配置走 ctx.config.onChange；文件轮询只当兜底，10 秒一次。
+const CONFIG_POLL_MS = 10_000;
 const CONFIG_FILE = "config.json";
+// 最近录音列表最多给这么多条，再多岛上放不下也没人看。
+const LIST_LIMIT = 20;
+const WAV_BYTES_PER_SECOND_16K_MONO = 32_000;
 
 // 宽松分类：宁可归到 failed，也不要误报成权限问题。
 function classifyError(message: string): ErrorCode {
@@ -72,12 +79,114 @@ export function apply(ctx: Context) {
     }
   }
 
-  function syncConfig(force = false): BarConfig {
-    const next = readConfig();
-    if (!force && JSON.stringify(next) === JSON.stringify(config)) return config;
+  function pushConfig(next: BarConfig) {
+    if (JSON.stringify(next) === JSON.stringify(config)) return;
     config = next;
     ctx.clients.publish(TOPICS.config, config);
+  }
+
+  function syncConfig(force = false): BarConfig {
+    const next = readConfig();
+    if (force) {
+      config = next;
+      ctx.clients.publish(TOPICS.config, config);
+      return config;
+    }
+    pushConfig(next);
     return config;
+  }
+
+  // 保存位置只给四档，映射到固定目录；目录建不出来就退回插件数据目录，
+  // 宁可文件藏在深处，也不能因为路径不可写导致录音直接失败。
+  const home = process.env.USERPROFILE ?? homedir();
+  const knownDirs = (): Record<SaveDir, string> => ({
+    data: ctx.dataDir,
+    music: join(home, "Music"),
+    desktop: join(home, "Desktop"),
+    documents: join(home, "Documents"),
+  });
+
+  function saveDirOf(cfg: BarConfig): string {
+    const dir = knownDirs()[cfg.saveDir] ?? ctx.dataDir;
+    try {
+      mkdirSync(dir, { recursive: true });
+      return dir;
+    } catch {
+      return ctx.dataDir;
+    }
+  }
+
+  // 只读文件头就能算出时长，不必把整段 WAV 读进内存。
+  function headOf(path: string, length = 512): Uint8Array | null {
+    let fd: number | null = null;
+    try {
+      fd = openSync(path, "r");
+      const buf = Buffer.alloc(length);
+      const read = readSync(fd, buf, 0, length, 0);
+      return new Uint8Array(buf.buffer, buf.byteOffset, read);
+    } catch {
+      return null;
+    } finally {
+      if (fd !== null) {
+        try { closeSync(fd); } catch { /* 关不掉也只能算了 */ }
+      }
+    }
+  }
+
+  function recordingsIn(dir: string, seen: Set<string>, out: RecordingItem[]) {
+    let names: string[] = [];
+    try {
+      names = readdirSync(dir);
+    } catch {
+      return;
+    }
+    for (const entry of names) {
+      if (!entry.toLowerCase().endsWith(".wav")) continue;
+      const path = join(dir, entry);
+      if (seen.has(path)) continue;
+      seen.add(path);
+      try {
+        const info = statSync(path);
+        if (!info.isFile()) continue;
+        const head = headOf(path);
+        const parsed = head ? wavDurationMs(head) : null;
+        // 头里 data 长度为 0 的写入器算不出来，用 16k 单声道 16bit 的码率兜底。
+        const fallback = Math.max(0, Math.round(((info.size - 44) / WAV_BYTES_PER_SECOND_16K_MONO) * 1000));
+        out.push({
+          name: entry,
+          path,
+          size: info.size,
+          mtime: info.mtimeMs,
+          durationMs: parsed ?? fallback,
+        });
+      } catch {
+        // 文件刚被删掉，跳过。
+      }
+    }
+  }
+
+  function listRecordings(): RecordingItem[] {
+    const out: RecordingItem[] = [];
+    const seen = new Set<string>();
+    recordingsIn(saveDirOf(config), seen, out);
+    recordingsIn(ctx.dataDir, seen, out);
+    return out.sort((a, b) => b.mtime - a.mtime).slice(0, LIST_LIMIT);
+  }
+
+  // 只允许定位到「已知录音目录里的 .wav」，避免窗口侧传个任意路径把资源管理器拉起来。
+  function reveal(path: unknown): { ok: boolean } {
+    if (typeof path !== "string") return { ok: false };
+    const target = resolve(path);
+    if (!target.toLowerCase().endsWith(".wav")) return { ok: false };
+    const allowed = [saveDirOf(config), ctx.dataDir].map((dir) => resolve(dir).toLowerCase() + sep);
+    if (!allowed.some((dir) => target.toLowerCase().startsWith(dir))) return { ok: false };
+    if (!existsSync(target)) return { ok: false };
+    try {
+      spawn("explorer.exe", ["/select,", target], { detached: true, stdio: "ignore" }).unref();
+      return { ok: true };
+    } catch {
+      return { ok: false };
+    }
   }
 
   // state 内部只存「已完成段累计 + 当前段起点」，对外快照把实时时长算进 elapsedMs。
@@ -199,7 +308,7 @@ export function apply(ctx: Context) {
       return state;
     }
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const file = join(ctx.dataDir, `recording-${stamp}.wav`);
+    const file = join(saveDirOf(config), `recording-${stamp}.wav`);
     const result = await send(`START ${file}`);
     if (!result.ok || result.payload !== "RECORDING") {
       fail(`录音启动失败：${result.payload}`);
@@ -281,8 +390,23 @@ export function apply(ctx: Context) {
   ctx.clients.handle(METHODS.stop, stop);
   ctx.clients.handle(METHODS.pause, pause);
   ctx.clients.handle(METHODS.resume, resume);
+  ctx.clients.handle(METHODS.list, () => listRecordings());
+  ctx.clients.handle(METHODS.reveal, (path?: unknown) => reveal(path));
 
   syncConfig(true);
+
+  // 设置面板保存后立刻推给岛上；onChange 不可用时靠 10 秒的文件兜底。
+  try {
+    const accessor = (ctx as unknown as {
+      config?: { onChange?: (listener: (values: unknown) => void) => unknown };
+    }).config;
+    accessor?.onChange?.((values) => {
+      pushConfig(normalizeBarConfig(values));
+    });
+  } catch {
+    // 旧版浮屿没有 onChange，继续走轮询。
+  }
+
   ctx.setInterval(() => { syncConfig(); }, CONFIG_POLL_MS);
 
   ctx.commands.register("toggle", () => (state.status === "recording" || state.status === "paused" ? stop() : start()), {

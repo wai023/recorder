@@ -9,6 +9,7 @@ import {
   normalizeBarConfig,
   type BarConfig,
   type RecState,
+  type RecordingItem,
 } from "./types.ts";
 import { text } from "./text.ts";
 import "./styles.css";
@@ -20,6 +21,18 @@ function MicIcon({ size = 16 }: { size?: number | string }) {
       <path d="M5 10a7 7 0 0 0 14 0M12 17v5" />
     </svg>
   );
+}
+
+// 列表里的时间只到分钟，文件名那串 ISO 时间戳对用户没意义。
+function stampOf(ms: number): string {
+  const d = new Date(ms);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function sizeOf(bytes: number): string {
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function GearIcon({ size = 14 }: { size?: number | string }) {
@@ -85,8 +98,27 @@ export default function apply(ctx: Context) {
     return config;
   }
 
+  // 录音结束后刷一次「最近录音」；目录由宿主读，窗口只拿结果。
+  function useRecent(state: RecState): RecordingItem[] {
+    const [items, setItems] = useState<RecordingItem[]>([]);
+    useEffect(() => {
+      let alive = true;
+      void (async () => {
+        try {
+          const list = await ctx.host.call<RecordingItem[]>(METHODS.list);
+          if (alive && Array.isArray(list)) setItems(list);
+        } catch {
+          // 列表拿不到不影响录音本身。
+        }
+      })();
+      return () => { alive = false; };
+    }, [state.status, state.file]);
+    return items;
+  }
+
   function Page() {
     const state = useRecorder();
+    const recent = useRecent(state);
     const recording = state.status === "recording";
     const paused = state.status === "paused";
     const active = recording || paused;
@@ -139,6 +171,30 @@ export default function apply(ctx: Context) {
         {state.status === "saved" && <p className="recorder__note">{text.lastTime}: {formatDuration(state.lastElapsedMs)}</p>}
         {state.status === "error" && <p className="recorder__note recorder__note--warn">{text.error(state.error ?? "")}</p>}
         {state.status === "idle" && <p className="recorder__note">{text.hint}</p>}
+        {recent.length > 0 && (
+          <div className="recorder__recent">
+            <p className="recorder__recent-head">
+              <span>{text.recent}</span>
+              <span className="recorder__recent-hint">{text.recentHint}</span>
+            </p>
+            <ul className="recorder__recent-list">
+              {recent.map((item) => (
+                <li key={item.path}>
+                  <button
+                    type="button"
+                    className="recorder__recent-row"
+                    title={item.path}
+                    onClick={() => void ctx.host.call(METHODS.reveal, item.path)}
+                  >
+                    <span className="recorder__recent-when">{stampOf(item.mtime)}</span>
+                    <span className="recorder__recent-dur">{formatDuration(item.durationMs)}</span>
+                    <span className="recorder__recent-size">{sizeOf(item.size)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     );
   }

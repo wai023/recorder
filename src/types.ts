@@ -10,22 +10,38 @@ export const METHODS = {
   stop: "recorder.stop",
   pause: "recorder.pause",
   resume: "recorder.resume",
+  list: "recorder.list",
+  reveal: "recorder.reveal",
 } as const;
 
 export type BarStyle = "icon" | "icon-time" | "text-time";
-export type BarConfig = { barStyle: BarStyle; showStateDot: boolean };
+// 保存位置只给固定几档：让用户手填绝对路径容易写错，还要处理越权与不存在的目录。
+export type SaveDir = "data" | "music" | "desktop" | "documents";
 
-export const DEFAULT_BAR_CONFIG: BarConfig = { barStyle: "icon-time", showStateDot: true };
+export type BarConfig = { barStyle: BarStyle; showStateDot: boolean; saveDir: SaveDir };
+
+export const DEFAULT_BAR_CONFIG: BarConfig = { barStyle: "icon-time", showStateDot: true, saveDir: "data" };
 
 // 配置面板存的是稀疏值（只写改过的项），这里补齐默认并挡掉非法值。
 export function normalizeBarConfig(raw: unknown): BarConfig {
   const input = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
   const style = input.barStyle;
+  const dir = input.saveDir;
   return {
     barStyle: style === "icon" || style === "text-time" ? style : "icon-time",
     showStateDot: input.showStateDot !== false,
+    saveDir: dir === "music" || dir === "desktop" || dir === "documents" ? dir : "data",
   };
 }
+
+// 岛上「最近录音」列表的一项，时长从 WAV 头算，文件已被删就跳过。
+export type RecordingItem = {
+  name: string;
+  path: string;
+  size: number;
+  mtime: number;
+  durationMs: number;
+};
 
 export type RecStatus = "idle" | "starting" | "recording" | "paused" | "saved" | "error";
 export type ErrorCode = "permission" | "device" | "interrupted" | "failed" | null;
