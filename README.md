@@ -4,6 +4,12 @@ Windows 专用的浮屿录音插件。点岛上的「录音」页开始，点「
 
 状态共六种：未开始、启动中、录音中、已暂停、已结束、出错。时长由宿主计时并每 500ms 推送快照，收起条和页面读同一份数据，不会各走各的。权限不足、设备不可用、进程中断分别给出对应提示；中断时若 WAV 已落盘会自动补交到文件中转。
 
+## 安装
+
+到 [Releases](https://github.com/wai023/recorder/releases) 下载最新的 `wai023-recorder-*.fuyu`，双击安装。浮屿若拦第三方插件，先在设置里放开。
+
+包内只有 JS 和一个 PowerShell 脚本 `assets/record.ps1`，不带 `.exe` / `.dll`，不依赖 ffmpeg。
+
 ## 原理
 
 插件宿主是 Node 进程，启动一个常驻的 PowerShell 子进程，通过 stdin/stdout 收发命令。PowerShell 脚本 `assets/record.ps1` 随包分发，运行时复制到插件数据目录；它调用 Windows 自带的 `winmm.dll` MCI 接口录音并直接保存为 WAV。
