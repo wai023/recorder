@@ -1,6 +1,6 @@
 # Windows MCI recorder, driven by the Node host over stdin/stdout.
-# Commands: START <path>\n  STOP\n  QUIT\n
-# Replies:  READY\n  RECORDING\n  SAVED <path>\n  ERROR <text>\n
+# Commands: START <path>\n  PAUSE\n  RESUME\n  STOP\n  QUIT\n
+# Replies:  READY\n  RECORDING\n  PAUSED\n  RESUMED\n  SAVED <path>\n  ERROR <text>\n
 param([int]$SampleRate = 16000)
 
 $ErrorActionPreference = 'Stop'
@@ -40,6 +40,7 @@ function Try-Mci {
 
 $alias = 'fuyuRecorder'
 $recording = $false
+$paused = $false
 $script:currentPath = ''
 [Console]::Out.WriteLine('READY')
 
@@ -53,8 +54,9 @@ try {
         try {
             if ($line.StartsWith('START ')) {
                 $path = $line.Substring(6).Trim()
+                if ($recording) { Try-Mci "stop $alias"; Try-Mci "close $alias" }
                 $script:currentPath = $path
-                if ($recording) { Invoke-Mci "stop $alias" | Out-Null; Invoke-Mci "close $alias" | Out-Null }
+                $paused = $false
                 $dir = Split-Path -Parent $path
                 if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
                 Invoke-Mci "open new type waveaudio alias $alias" | Out-Null
@@ -66,8 +68,21 @@ try {
                 $recording = $true
                 [Console]::Out.WriteLine('RECORDING')
             }
+            elseif ($line -eq 'PAUSE') {
+                if (-not $recording -or $paused) { [Console]::Out.WriteLine('ERROR not-recording'); continue }
+                Invoke-Mci "pause $alias" | Out-Null
+                $paused = $true
+                [Console]::Out.WriteLine('PAUSED')
+            }
+            elseif ($line -eq 'RESUME') {
+                if (-not $recording -or -not $paused) { [Console]::Out.WriteLine('ERROR not-paused'); continue }
+                Invoke-Mci "resume $alias" | Out-Null
+                $paused = $false
+                [Console]::Out.WriteLine('RESUMED')
+            }
             elseif ($line -eq 'STOP') {
                 if (-not $recording) { [Console]::Out.WriteLine('ERROR not-recording'); continue }
+                if ($paused) { Invoke-Mci "resume $alias" | Out-Null; $paused = $false }
                 Invoke-Mci "stop $alias" | Out-Null
                 $path = $script:currentPath
                 $escaped = $path.Replace('\', '\\')
@@ -77,8 +92,9 @@ try {
                 [Console]::Out.WriteLine("SAVED $path")
             }
             elseif ($line -eq 'QUIT') {
-                if ($recording) { Invoke-Mci "stop $alias" | Out-Null }
-                Invoke-Mci "close $alias" | Out-Null
+                if ($recording) { Try-Mci "stop $alias" }
+                Try-Mci "close $alias"
+                $recording = $false
                 break
             }
         }

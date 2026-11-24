@@ -25,6 +25,7 @@ function makeCtx(dataDir) {
     commands: {
       register: (id, fn, options) => commands.set(id, { fn, options }),
     },
+    setInterval: () => ({ dispose() {} }),
     handlers,
     registeredCommands: commands,
     published,
@@ -41,23 +42,34 @@ test("apply copies the bundled PowerShell script into the data directory", () =>
     const content = readFileSync(copied, "utf8");
     assert.ok(content.includes("mciSendString"), "script should contain the MCI call");
     assert.ok(content.includes("RECORDING"), "script should contain the RECORDING reply");
+    assert.ok(content.includes("PAUSED"), "script should contain the PAUSED reply");
+    assert.ok(content.includes("RESUMED"), "script should contain the RESUMED reply");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("apply registers all window methods and the toggle command", () => {
+test("apply registers all window methods and both commands", () => {
   const dir = mkdtempSync(join(tmpdir(), "fuyu-recorder-"));
   try {
     const ctx = makeCtx(dir);
     host.apply(ctx);
-    for (const name of ["recorder.getState", "recorder.start", "recorder.stop"]) {
+    for (const name of [
+      "recorder.getState",
+      "recorder.start",
+      "recorder.stop",
+      "recorder.pause",
+      "recorder.resume",
+    ]) {
       assert.ok(ctx.handlers.has(name), `${name} should be registered`);
     }
     assert.ok(ctx.registeredCommands.has("toggle"), "toggle command should be registered");
+    assert.ok(ctx.registeredCommands.has("pause"), "pause command should be registered");
     const title = ctx.registeredCommands.get("toggle").options.title;
     assert.equal(title["zh-CN"], "开始/停止录音");
     assert.equal(title.en, "Start / stop recording");
+    const pauseTitle = ctx.registeredCommands.get("pause").options.title;
+    assert.equal(pauseTitle["zh-CN"], "暂停/继续录音");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -72,6 +84,10 @@ test("getState reports idle before any recording starts", () => {
     assert.equal(state.status, "idle");
     assert.equal(state.file, null);
     assert.equal(state.error, null);
+    assert.equal(state.errorCode, null);
+    assert.equal(state.elapsedMs, 0);
+    assert.equal(state.startedAt, null);
+    assert.equal(state.lastElapsedMs, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

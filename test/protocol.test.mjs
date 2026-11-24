@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createLineBuffer, parseReply } from "../src/protocol.ts";
 
-test("parseReply reads the four protocol lines", () => {
+test("parseReply reads all protocol lines", () => {
   assert.deepEqual(parseReply("READY"), { kind: "ready" });
   assert.deepEqual(parseReply("RECORDING"), { kind: "recording" });
+  assert.deepEqual(parseReply("PAUSED"), { kind: "paused" });
+  assert.deepEqual(parseReply("RESUMED"), { kind: "resumed" });
   assert.deepEqual(parseReply("SAVED C:\\tmp\\a.wav"), { kind: "saved", path: "C:\\tmp\\a.wav" });
   assert.deepEqual(parseReply("ERROR device-busy"), { kind: "error", message: "device-busy" });
 });

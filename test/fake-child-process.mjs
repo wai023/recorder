@@ -31,6 +31,10 @@ export function spawn(command, args) {
         const path = line.slice(6);
         config.startPath = path;
         proc.stdout.write("RECORDING\n");
+      } else if (line === "PAUSE" && config.startPath) {
+        proc.stdout.write("PAUSED\n");
+      } else if (line === "RESUME" && config.startPath) {
+        proc.stdout.write("RESUMED\n");
       } else if (line === "STOP" && config.startPath) {
         writeFileSync(config.startPath, Buffer.from("RIFFfake-wav-data"));
         proc.stdout.write(`SAVED ${config.startPath}\n`);

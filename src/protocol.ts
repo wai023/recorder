@@ -1,6 +1,8 @@
 export type Reply =
   | { kind: "ready" }
   | { kind: "recording" }
+  | { kind: "paused" }
+  | { kind: "resumed" }
   | { kind: "saved"; path: string }
   | { kind: "error"; message: string };
 
@@ -9,6 +11,8 @@ export function parseReply(raw: string): Reply | null {
   if (!line) return null;
   if (line === "READY") return { kind: "ready" };
   if (line === "RECORDING") return { kind: "recording" };
+  if (line === "PAUSED") return { kind: "paused" };
+  if (line === "RESUMED") return { kind: "resumed" };
   if (line.startsWith("SAVED ")) {
     const path = line.slice(6).trim();
     return path ? { kind: "saved", path } : null;

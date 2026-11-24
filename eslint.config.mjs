@@ -8,7 +8,7 @@ const listener = "Listeners added with addEventListener outlive the plugin. Use 
 const style = 'Import a .css file instead (import "./styles.css"): the build adds it while the plugin runs and takes it out when it stops.';
 
 export default tseslint.config(
-  { ignores: ["build/**", "dist/**", "node_modules/**"] },
+  { ignores: ["build/**", "dist/**", "node_modules/**", "test/.tmp/**"] },
   {
     files: ["**/*.{ts,tsx,mts,js,jsx,mjs}"],
     extends: [tseslint.configs.recommended],

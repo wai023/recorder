@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "barStyle": {
+      "type": "string",
+      "title": {
+        "zh-CN": "收起条样式",
+        "en": "Collapsed bar style"
+      },
+      "description": {
+        "zh-CN": "icon=仅麦克风图标；icon-time=图标加时长（默认）；text-time=文字加时长",
+        "en": "icon = microphone only; icon-time = icon plus time (default); text-time = label plus time"
+      },
+      "enum": ["icon", "icon-time", "text-time"],
+      "default": "icon-time"
+    },
+    "showStateDot": {
+      "type": "boolean",
+      "title": {
+        "zh-CN": "显示状态点",
+        "en": "Show status dot"
+      },
+      "description": {
+        "zh-CN": "用圆点颜色区分待机、录音、暂停、结束和出错",
+        "en": "Use a colored dot for idle, recording, paused, saved and error"
+      },
+      "default": true
+    }
+  }
+}
