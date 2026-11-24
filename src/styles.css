@@ -1,0 +1,61 @@
+.recorder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px;
+  font-family: var(--fuyu-plugin-font);
+  font-size: 13px;
+  color: var(--fuyu-plugin-text);
+}
+
+.recorder__status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.recorder__dot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--fuyu-plugin-text-muted);
+}
+
+.recorder__dot--on {
+  background: #e24b4a;
+}
+
+.recorder__button {
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--fuyu-plugin-radius);
+  font: inherit;
+  color: var(--fuyu-plugin-on-accent);
+  background: var(--fuyu-plugin-accent);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recorder__button--stop {
+  color: #ffffff;
+  background: #a32d2d;
+}
+
+.recorder__button:disabled {
+  color: var(--fuyu-plugin-text-muted);
+  background: var(--fuyu-plugin-surface);
+  cursor: default;
+}
+
+.recorder__note {
+  margin: 0;
+  color: var(--fuyu-plugin-text-muted);
+  overflow-wrap: anywhere;
+}
