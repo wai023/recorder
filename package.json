@@ -1,6 +1,6 @@
 {
-  "name": "@wai02/recorder",
-  "version": "0.1.0",
+  "name": "@wai023/recorder",
+  "version": "0.1.1",
   "type": "module",
   "description": "Record audio on the island, save as WAV and add to the file shelf",
   "license": "MIT",

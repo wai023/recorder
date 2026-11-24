@@ -5,7 +5,7 @@ import { METHODS, TOPICS, INITIAL_STATE, formatDuration, type RecState } from ".
 import { text } from "./text.ts";
 import "./styles.css";
 
-const PLUGIN_ID = "@wai02/recorder";
+const PLUGIN_ID = "@wai023/recorder";
 type BarStyle = "icon" | "icon-time" | "text-time";
 type BarConfig = { barStyle: BarStyle; showStateDot: boolean };
 const DEFAULT_BAR_CONFIG: BarConfig = { barStyle: "icon-time", showStateDot: true };
